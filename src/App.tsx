@@ -24,9 +24,10 @@ export default function App() {
     return localStorage.getItem('exchange_linked') === 'true';
   });
 
-  const fetchStatus = async () => {
+  const fetchStatus = React.useCallback(async () => {
     try {
       const response = await fetch('/api/bot/status');
+      if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
       setBotStatus(data);
       if (data.exchangeConnected) {
@@ -36,13 +37,13 @@ export default function App() {
     } catch (error) {
       console.error('Failed to fetch status:', error);
     }
-  };
+  }, []);
 
   React.useEffect(() => {
     fetchStatus();
     const interval = setInterval(fetchStatus, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchStatus]);
 
   const handleLinkSuccess = () => {
     setIsLinked(true);
@@ -90,11 +91,11 @@ export default function App() {
       case 'الأسواق':
         return <MarketsView />;
       case 'تحليل الذكاء الاصطناعي':
-        return <AIAnalysisView />;
+        return <AIAnalysisView botStatus={botStatus} />;
       case 'التحليلات':
-        return <AnalyticsView />;
+        return <AnalyticsView botStatus={botStatus} />;
       case 'التداول التجريبي':
-        return <DemoTradingView />;
+        return <DemoTradingView botStatus={botStatus} onRefresh={fetchStatus} />;
       case 'لوحة التحكم':
       default:
         return (
@@ -114,9 +115,10 @@ export default function App() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6" ref={botPanelRef}>
               <div className="lg:col-span-8 h-[450px]">
                 <SmartBotPanel 
-                  onAnalysis={(data) => setBotAnalysis(data)} 
+                  botStatus={botStatus}
+                  onAnalysis={React.useCallback((data: any) => setBotAnalysis(data), [])} 
                   externalSettings={pendingSettings}
-                  onSettingsApplied={() => setPendingSettings(null)}
+                  onSettingsApplied={React.useCallback(() => setPendingSettings(null), [])}
                 />
               </div>
               <div className="lg:col-span-4">

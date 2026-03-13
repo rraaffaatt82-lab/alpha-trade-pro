@@ -7,11 +7,13 @@ import { motion, AnimatePresence } from 'motion/react';
 export const SmartBotPanel = ({ 
   onAnalysis, 
   externalSettings, 
-  onSettingsApplied 
+  onSettingsApplied,
+  botStatus
 }: { 
   onAnalysis?: (data: any) => void,
   externalSettings?: any,
-  onSettingsApplied?: () => void
+  onSettingsApplied?: () => void,
+  botStatus?: any
 }) => {
   const [settings, setSettings] = useState<BotSettings>({
     maxTradeAmount: 1000,
@@ -45,23 +47,13 @@ export const SmartBotPanel = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [fearGreed, setFearGreed] = useState(65);
 
-  // Sync with server on mount and periodically
+  // Sync with botStatus from props
   useEffect(() => {
-    const syncWithServer = async () => {
-      try {
-        const response = await fetch('/api/bot/status');
-        const data = await response.json();
-        setSettings(data.settings);
-        setLogs(data.logs);
-      } catch (error) {
-        console.error('Failed to sync with server:', error);
-      }
-    };
-
-    syncWithServer();
-    const interval = setInterval(syncWithServer, 5000); // Sync every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
+    if (botStatus) {
+      setSettings(botStatus.settings);
+      setLogs(botStatus.logs);
+    }
+  }, [botStatus]);
 
   const speak = (text: string) => {
     if (!settings.isVoiceEnabled) return;
@@ -105,14 +97,21 @@ export const SmartBotPanel = ({
     }
   };
 
+  const settingsRef = React.useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
   useEffect(() => {
     let interval: any;
     if (settings.isActive) {
-      interval = setInterval(async () => {
+      const runAnalysis = async () => {
         setIsAnalyzing(true);
         if (onAnalysis) onAnalysis({ isAnalyzing: true });
         try {
-          for (const asset of settings.selectedAssets) {
+          // Use current settings from ref to avoid dependency loop
+          const currentSettings = settingsRef.current;
+          for (const asset of currentSettings.selectedAssets) {
             // Get real price first
             const priceResponse = await fetch(`/api/market/price?symbol=${encodeURIComponent(asset)}`);
             const priceData = await priceResponse.json();
@@ -129,7 +128,7 @@ export const SmartBotPanel = ({
               body: JSON.stringify({
                 symbol: asset,
                 price: currentPrice,
-                settings
+                settings: currentSettings
               })
             });
             const data = await response.json();
@@ -149,10 +148,13 @@ export const SmartBotPanel = ({
         } finally {
           setIsAnalyzing(false);
         }
-      }, 15000);
+      };
+
+      runAnalysis(); // Run immediately
+      interval = setInterval(runAnalysis, 30000); // Run every 30 seconds (less frequent to avoid hangs)
     }
     return () => clearInterval(interval);
-  }, [settings.isActive, settings, onAnalysis]);
+  }, [settings.isActive, onAnalysis]);
 
   return (
     <div className="bg-brand-surface border border-brand-border rounded-2xl flex flex-col h-full overflow-hidden">

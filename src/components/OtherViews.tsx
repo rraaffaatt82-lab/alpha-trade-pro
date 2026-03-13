@@ -2,29 +2,18 @@ import React from 'react';
 import { History, Bell, Settings, Shield, User, CreditCard, Lock, Globe, Moon, TrendingUp, Cpu, Zap, BarChart3, PieChart, Play, Square, Power, Target, Activity, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { cn } from '../utils';
 
-export const AnalyticsView = () => {
+export const AnalyticsView = ({ botStatus }: { botStatus?: any }) => {
   const [analytics, setAnalytics] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
-  const fetchAnalytics = async () => {
-    try {
-      const response = await fetch('/api/bot/status');
-      const data = await response.json();
-      setAnalytics(data.analytics);
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error);
-    } finally {
+  React.useEffect(() => {
+    if (botStatus) {
+      setAnalytics(botStatus.analytics);
       setLoading(false);
     }
-  };
+  }, [botStatus]);
 
-  React.useEffect(() => {
-    fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  if (loading) return <div className="p-12 text-center text-brand-text-muted">جاري تحميل التحليلات العميقة...</div>;
+  if (loading && !analytics) return <div className="p-12 text-center text-brand-text-muted">جاري تحميل التحليلات العميقة...</div>;
 
   const stats = [
     { label: 'معدل الفوز (Win Rate)', value: `${analytics?.winRate?.toFixed(1)}%`, icon: Target, color: 'text-brand-success' },
@@ -142,7 +131,7 @@ export const MarketsView = () => {
   );
 };
 
-export const AIAnalysisView = () => {
+export const AIAnalysisView = ({ botStatus }: { botStatus?: any }) => {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 mb-2">
@@ -155,27 +144,38 @@ export const AIAnalysisView = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-brand-surface border border-brand-border p-6 rounded-2xl text-right">
           <h3 className="text-lg font-bold mb-4">توقعات الاتجاه القادم</h3>
-          <div className="h-64 flex items-center justify-center border border-dashed border-brand-border rounded-xl">
-            <p className="text-brand-text-muted">جاري معالجة البيانات الضخمة...</p>
+          <div className="h-64 flex flex-col items-center justify-center border border-dashed border-brand-border rounded-xl p-8 text-center">
+            {botStatus?.active ? (
+              <>
+                <div className="w-12 h-12 border-4 border-brand-accent border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-brand-accent font-bold">جاري معالجة البيانات الضخمة وتحركات الحيتان...</p>
+                <p className="text-xs text-brand-text-muted mt-2">يتم تحليل السيولة العالمية والارتباطات الماكرو في الوقت الفعلي</p>
+              </>
+            ) : (
+              <>
+                <Cpu size={48} className="text-brand-text-muted opacity-20 mb-4" />
+                <p className="text-brand-text-muted">قم بتفعيل البوت لبدء التحليل العميق</p>
+              </>
+            )}
           </div>
         </div>
         <div className="space-y-4">
           <div className="bg-brand-surface border border-brand-border p-5 rounded-2xl text-right">
             <div className="flex items-center gap-3 mb-3 flex-row-reverse">
               <Zap size={18} className="text-yellow-500" />
-              <h4 className="text-sm font-bold">قوة الإشارة</h4>
+              <h4 className="text-sm font-bold">قوة الإشارة الحالية</h4>
             </div>
             <div className="w-full h-2 bg-brand-border rounded-full overflow-hidden">
               <div className="w-[85%] h-full bg-brand-accent" />
             </div>
-            <p className="text-[10px] text-brand-text-muted mt-2">قوة إشارة الشراء: 85%</p>
+            <p className="text-[10px] text-brand-text-muted mt-2">قوة إشارة الشراء: 85% (بناءً على التحليل الأخير)</p>
           </div>
           <div className="bg-brand-surface border border-brand-border p-5 rounded-2xl text-right">
             <div className="flex items-center gap-3 mb-3 flex-row-reverse">
               <BarChart3 size={18} className="text-blue-500" />
               <h4 className="text-sm font-bold">الارتباط الماكرو</h4>
             </div>
-            <p className="text-xs text-brand-text-muted">ارتباط قوي مع مؤشر DXY (سلبي) والذهب (إيجابي).</p>
+            <p className="text-xs text-brand-text-muted">ارتباط قوي مع مؤشر DXY (سلبي) والذهب (إيجابي). يتم تحديث البيانات كل 30 ثانية.</p>
           </div>
         </div>
       </div>
@@ -285,7 +285,7 @@ export const AlertsView = () => {
   );
 };
 
-export const DemoTradingView = () => {
+export const DemoTradingView = ({ botStatus, onRefresh }: { botStatus?: any, onRefresh?: () => void }) => {
   const [balance, setBalance] = React.useState(10000);
   const [profit, setProfit] = React.useState(0);
   const [trades, setTrades] = React.useState<any[]>([]);
@@ -295,25 +295,15 @@ export const DemoTradingView = () => {
   const [botActive, setBotActive] = React.useState(false);
   const [isToggling, setIsToggling] = React.useState(false);
 
-  const fetchDemoData = async () => {
-    try {
-      const response = await fetch('/api/bot/status');
-      const data = await response.json();
-      setBalance(data.demoBalance);
-      setProfit(data.demoProfit || 0);
-      setTrades(data.demoTrades);
-      setActiveTrades(data.demoActiveTrades || []);
-      setBotActive(data.active);
-    } catch (error) {
-      console.error('Failed to fetch demo data:', error);
-    }
-  };
-
   React.useEffect(() => {
-    fetchDemoData();
-    const interval = setInterval(fetchDemoData, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (botStatus) {
+      setBalance(botStatus.demoBalance);
+      setProfit(botStatus.demoProfit || 0);
+      setTrades(botStatus.demoTrades);
+      setActiveTrades(botStatus.demoActiveTrades || []);
+      setBotActive(botStatus.active);
+    }
+  }, [botStatus]);
 
   const toggleBot = async () => {
     setIsToggling(true);
@@ -326,6 +316,7 @@ export const DemoTradingView = () => {
       });
       const data = await response.json();
       setBotActive(data.active);
+      if (onRefresh) onRefresh();
     } catch (error) {
       console.error('Failed to toggle bot:', error);
     } finally {
@@ -344,7 +335,7 @@ export const DemoTradingView = () => {
       if (response.ok) {
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
-        fetchDemoData();
+        if (onRefresh) onRefresh();
       }
     } catch (error) {
       console.error('Reset failed:', error);

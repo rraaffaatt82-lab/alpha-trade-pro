@@ -37,16 +37,18 @@ const botStates: Record<string, any> = {
 // Fetch Whale Activity (Large Trades)
 async function fetchWhaleActivity() {
   try {
-    const binance = new ccxt.binance();
+    const binance = new ccxt.binance({ timeout: 10000 });
     const trades = await binance.fetchTrades('BTC/USDT', undefined, 10);
+    if (!trades || !Array.isArray(trades)) return;
+    
     const largeTrades = trades
-      .filter(t => t.amount * t.price > 50000) // Trades over $50k
+      .filter(t => t.amount && t.price && (t.amount * t.price > 50000)) // Trades over $50k
       .map(t => ({
-        id: t.id,
+        id: t.id || Math.random().toString(),
         symbol: t.symbol,
         amount: (t.amount * t.price / 1000).toFixed(1) + 'K',
         type: t.side,
-        time: new Date(t.timestamp).toLocaleTimeString('ar-EG')
+        time: new Date(t.timestamp || Date.now()).toLocaleTimeString('ar-EG')
       }));
     botStates.whaleActivity = largeTrades;
   } catch (error) {
@@ -76,9 +78,9 @@ setInterval(() => {
 // Fetch real price from Binance (Public API)
 async function getRealPrice(symbol: string) {
   try {
-    const binance = new ccxt.binance();
+    const binance = new ccxt.binance({ timeout: 5000 });
     const ticker = await binance.fetchTicker(symbol);
-    return ticker.last;
+    return ticker.last || ticker.close || null;
   } catch (error) {
     console.error(`Error fetching price for ${symbol}:`, error);
     return null;
@@ -100,97 +102,101 @@ function addServerLog(action: string, message: string, symbol: string = 'BTC/USD
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
 
   // Background Simulation Loop (Real Market Data Simulation)
   setInterval(async () => {
-    if (botStates.active) {
-      const now = Date.now();
-      const today = new Date().toDateString();
+    try {
+      if (botStates.active) {
+        const now = Date.now();
+        const today = new Date().toDateString();
 
-      // Reset daily stats if new day
-      if (botStates.lastResetDate !== today) {
-        botStates.lastResetDate = today;
-        botStates.dailyProfitLoss = 0;
-        botStates.initialDailyBalance = botStates.demoBalance;
-      }
+        // Reset daily stats if new day
+        if (botStates.lastResetDate !== today) {
+          botStates.lastResetDate = today;
+          botStates.dailyProfitLoss = 0;
+          botStates.initialDailyBalance = botStates.demoBalance;
+        }
 
-      // Check Daily Stop Loss
-      const dailyLossPercent = botStates.initialDailyBalance > 0 
-        ? (botStates.dailyProfitLoss / botStates.initialDailyBalance) * 100 
-        : 0;
-        
-      if (dailyLossPercent <= -botStates.settings.dailyStopLoss) {
-        botStates.active = false;
-        addServerLog('danger', `🛑 توقف تلقائي: تم الوصول لـ "وقف الخسارة اليومي" (${botStates.settings.dailyStopLoss}%). تم إيقاف التداول لحماية ما تبقى من رأس المال.`);
-        return;
-      }
-      
-      // 1. Handle Closing Active Trades
-      for (let i = botStates.demoActiveTrades.length - 1; i >= 0; i--) {
-        const trade = botStates.demoActiveTrades[i];
-        const currentPrice = await getRealPrice(trade.symbol);
-        
-        if (!currentPrice) continue;
-
-        const priceChangePercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
-        
-        // Logic: Close if Take Profit or Stop Loss hit, or duration expired (min 2 mins for realism)
-        const isTP = priceChangePercent >= botStates.settings.takeProfit;
-        const isSL = priceChangePercent <= -botStates.settings.stopLoss;
-        const isExpired = now - trade.rawEntryTime > trade.duration;
-
-        if (isTP || isSL || isExpired) {
-          const profitAmount = (trade.amount * priceChangePercent) / 100;
+        // Check Daily Stop Loss
+        const dailyLossPercent = botStates.initialDailyBalance > 0 
+          ? (botStates.dailyProfitLoss / botStates.initialDailyBalance) * 100 
+          : 0;
           
-          botStates.demoProfit += profitAmount;
-          botStates.dailyProfitLoss += profitAmount;
-          botStates.demoBalance += profitAmount;
-
-          const completedTrade = {
-            ...trade,
-            exitPrice: currentPrice,
-            profit: profitAmount,
-            profitPercent: priceChangePercent,
-            exitTime: new Date().toLocaleTimeString('ar-EG'),
-            status: profitAmount > 0 ? 'profit' : 'loss'
-          };
-
-          botStates.demoTrades = [completedTrade, ...botStates.demoTrades].slice(0, 50);
-          botStates.demoActiveTrades.splice(i, 1);
+        if (dailyLossPercent <= -botStates.settings.dailyStopLoss) {
+          botStates.active = false;
+          addServerLog('danger', `🛑 توقف تلقائي: تم الوصول لـ "وقف الخسارة اليومي" (${botStates.settings.dailyStopLoss}%). تم إيقاف التداول لحماية ما تبقى من رأس المال.`);
+          return;
+        }
+        
+        // 1. Handle Closing Active Trades
+        for (let i = botStates.demoActiveTrades.length - 1; i >= 0; i--) {
+          const trade = botStates.demoActiveTrades[i];
+          const currentPrice = await getRealPrice(trade.symbol);
           
-          const action = profitAmount > 0 ? 'buy' : 'sell';
-          const msg = profitAmount > 0 
-            ? `✅ تم إغلاق صفقة ${trade.symbol} بربح حقيقي من السوق $${profitAmount.toFixed(2)} (+${priceChangePercent.toFixed(2)}%)`
-            : `❌ تم إغلاق صفقة ${trade.symbol} على خسارة من السوق $${Math.abs(profitAmount).toFixed(2)} (${priceChangePercent.toFixed(2)}%)`;
+          if (!currentPrice) continue;
+
+          const priceChangePercent = ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100;
           
-          addServerLog(action, msg, trade.symbol, currentPrice);
+          // Logic: Close if Take Profit or Stop Loss hit, or duration expired (min 2 mins for realism)
+          const isTP = priceChangePercent >= botStates.settings.takeProfit;
+          const isSL = priceChangePercent <= -botStates.settings.stopLoss;
+          const isExpired = now - trade.rawEntryTime > trade.duration;
+
+          if (isTP || isSL || isExpired) {
+            const profitAmount = (trade.amount * priceChangePercent) / 100;
+            
+            botStates.demoProfit += profitAmount;
+            botStates.dailyProfitLoss += profitAmount;
+            botStates.demoBalance += profitAmount;
+
+            const completedTrade = {
+              ...trade,
+              exitPrice: currentPrice,
+              profit: profitAmount,
+              profitPercent: priceChangePercent,
+              exitTime: new Date().toLocaleTimeString('ar-EG'),
+              status: profitAmount > 0 ? 'profit' : 'loss'
+            };
+
+            botStates.demoTrades = [completedTrade, ...botStates.demoTrades].slice(0, 50);
+            botStates.demoActiveTrades.splice(i, 1);
+            
+            const action = profitAmount > 0 ? 'buy' : 'sell';
+            const msg = profitAmount > 0 
+              ? `✅ تم إغلاق صفقة ${trade.symbol} بربح حقيقي من السوق $${profitAmount.toFixed(2)} (+${priceChangePercent.toFixed(2)}%)`
+              : `❌ تم إغلاق صفقة ${trade.symbol} على خسارة من السوق $${Math.abs(profitAmount).toFixed(2)} (${priceChangePercent.toFixed(2)}%)`;
+            
+            addServerLog(action, msg, trade.symbol, currentPrice);
+          }
+        }
+
+        // 2. Open New Trades (if less than 2 active)
+        if (botStates.demoActiveTrades.length < 2 && Math.random() > 0.6) {
+          const symbol = botStates.settings.selectedAssets[Math.floor(Math.random() * botStates.settings.selectedAssets.length)];
+          const entryPrice = await getRealPrice(symbol);
+          
+          if (entryPrice) {
+            const newTrade = {
+              id: Date.now(),
+              symbol,
+              entryPrice,
+              amount: botStates.settings.maxTradeAmount,
+              entryTime: new Date().toLocaleTimeString('ar-EG'),
+              rawEntryTime: now,
+              duration: 120000 + Math.random() * 300000, // 2-5 minutes
+              status: 'open'
+            };
+
+            botStates.demoActiveTrades.push(newTrade);
+            addServerLog('info', `🚀 تم فتح صفقة حقيقية من السوق على ${symbol} بسعر ${entryPrice.toFixed(2)}`, symbol);
+          }
         }
       }
-
-      // 2. Open New Trades (if less than 2 active)
-      if (botStates.demoActiveTrades.length < 2 && Math.random() > 0.6) {
-        const symbol = botStates.settings.selectedAssets[Math.floor(Math.random() * botStates.settings.selectedAssets.length)];
-        const entryPrice = await getRealPrice(symbol);
-        
-        if (entryPrice) {
-          const newTrade = {
-            id: Date.now(),
-            symbol,
-            entryPrice,
-            amount: botStates.settings.maxTradeAmount,
-            entryTime: new Date().toLocaleTimeString('ar-EG'),
-            rawEntryTime: now,
-            duration: 120000 + Math.random() * 300000, // 2-5 minutes
-            status: 'open'
-          };
-
-          botStates.demoActiveTrades.push(newTrade);
-          addServerLog('info', `🚀 تم فتح صفقة حقيقية من السوق على ${symbol} بسعر ${entryPrice.toFixed(2)}`, symbol);
-        }
-      }
+    } catch (err) {
+      console.error("Error in background simulation loop:", err);
     }
   }, 15000); // Check every 15 seconds
 
