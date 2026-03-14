@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { X, DollarSign, TrendingUp, TrendingDown, Zap, AlertTriangle } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 
 interface QuickTradeModalProps {
   isOpen: boolean;
@@ -20,12 +19,8 @@ export const QuickTradeModal = ({ isOpen, onClose, onConfirm }: QuickTradeModalP
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" dir="rtl">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        <div 
           className="bg-brand-surface border border-brand-border w-full max-w-md rounded-3xl overflow-hidden shadow-2xl"
         >
           {/* Header */}
@@ -119,8 +114,7 @@ export const QuickTradeModal = ({ isOpen, onClose, onConfirm }: QuickTradeModalP
               تأكيد وبدء التداول الآلي
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </AnimatePresence>
   );
 };

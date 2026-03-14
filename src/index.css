@@ -14,6 +14,27 @@
   --color-brand-text-muted: #71717A;
 }
 
+:root.light-theme {
+  --color-brand-bg: #F9FAFB;
+  --color-brand-surface: #FFFFFF;
+  --color-brand-border: #E5E7EB;
+  --color-brand-accent: #2563EB;
+  --color-brand-text-muted: #6B7280;
+  color: #111827;
+}
+
+:root.light-theme body {
+  @apply bg-brand-bg text-gray-900;
+}
+
+:root.light-theme .text-white {
+  @apply text-gray-900;
+}
+
+:root.light-theme .bg-brand-surface {
+  @apply bg-white;
+}
+
 @layer base {
   body {
     @apply bg-brand-bg text-white font-sans antialiased;

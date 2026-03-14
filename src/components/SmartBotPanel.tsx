@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Bot, Play, Square, Settings, Activity, MessageSquare, Volume2, VolumeX, CheckSquare } from 'lucide-react';
 import { cn } from '../utils';
 import { BotSettings, BotLog } from '../types';
-import { motion, AnimatePresence } from 'motion/react';
 
 export const SmartBotPanel = ({ 
   onAnalysis, 
@@ -24,6 +23,9 @@ export const SmartBotPanel = ({
     isVoiceEnabled: true,
     selectedAssets: ['BTC/USDT', 'ETH/USDT']
   });
+
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (externalSettings) {
@@ -49,11 +51,33 @@ export const SmartBotPanel = ({
 
   // Sync with botStatus from props
   useEffect(() => {
-    if (botStatus) {
+    if (botStatus && !isDirty) {
       setSettings(botStatus.settings);
       setLogs(botStatus.logs);
+    } else if (botStatus) {
+      setLogs(botStatus.logs);
     }
-  }, [botStatus]);
+  }, [botStatus, isDirty]);
+
+  const saveSettings = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/bot/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings })
+      });
+      if (response.ok) {
+        setIsDirty(false);
+        addLog('info', 'تم حفظ الإعدادات الجديدة بنجاح');
+        speak('تم حفظ الإعدادات');
+      }
+    } catch (error) {
+      addLog('info', 'فشل حفظ الإعدادات');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const speak = (text: string) => {
     if (!settings.isVoiceEnabled) return;
@@ -84,10 +108,11 @@ export const SmartBotPanel = ({
       const response = await fetch('/api/bot/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: newState, settings })
+        body: JSON.stringify({ active: newState, settings: { ...settings, isActive: newState } })
       });
       const data = await response.json();
       setSettings(prev => ({ ...prev, isActive: data.active }));
+      setIsDirty(false);
       
       const msg = data.active ? 'تم تفعيل البوت على الخادم. سيعمل حتى لو أغلقت المتصفح.' : 'تم إيقاف البوت.';
       addLog('info', msg);
@@ -216,6 +241,7 @@ export const SmartBotPanel = ({
                         ? settings.selectedAssets.filter(a => a !== asset)
                         : [...settings.selectedAssets, asset];
                       setSettings(prev => ({ ...prev, selectedAssets: assets }));
+                      setIsDirty(true);
                     }}
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2",
@@ -235,7 +261,10 @@ export const SmartBotPanel = ({
               <input 
                 type="number" 
                 value={settings.maxTradeAmount}
-                onChange={(e) => setSettings(prev => ({ ...prev, maxTradeAmount: Number(e.target.value) }))}
+                onChange={(e) => {
+                  setSettings(prev => ({ ...prev, maxTradeAmount: Number(e.target.value) }));
+                  setIsDirty(true);
+                }}
                 className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-accent"
               />
             </div>
@@ -245,7 +274,10 @@ export const SmartBotPanel = ({
                 <input 
                   type="number" 
                   value={settings.takeProfit}
-                  onChange={(e) => setSettings(prev => ({ ...prev, takeProfit: Number(e.target.value) }))}
+                  onChange={(e) => {
+                    setSettings(prev => ({ ...prev, takeProfit: Number(e.target.value) }));
+                    setIsDirty(true);
+                  }}
                   className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-accent"
                 />
               </div>
@@ -254,7 +286,10 @@ export const SmartBotPanel = ({
                 <input 
                   type="number" 
                   value={settings.stopLoss}
-                  onChange={(e) => setSettings(prev => ({ ...prev, stopLoss: Number(e.target.value) }))}
+                  onChange={(e) => {
+                    setSettings(prev => ({ ...prev, stopLoss: Number(e.target.value) }));
+                    setIsDirty(true);
+                  }}
                   className="w-full bg-brand-bg border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-accent"
                 />
               </div>
@@ -264,11 +299,24 @@ export const SmartBotPanel = ({
               <input 
                 type="number" 
                 value={settings.dailyStopLoss}
-                onChange={(e) => setSettings(prev => ({ ...prev, dailyStopLoss: Number(e.target.value) }))}
+                onChange={(e) => {
+                  setSettings(prev => ({ ...prev, dailyStopLoss: Number(e.target.value) }));
+                  setIsDirty(true);
+                }}
                 className="w-full bg-brand-bg border border-brand-danger/30 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-danger text-brand-danger font-bold"
               />
               <p className="text-[9px] text-brand-text-muted mt-1">سيتم إيقاف البوت فوراً إذا وصلت خسارة اليوم لهذه النسبة من الرصيد.</p>
             </div>
+            
+            {isDirty && (
+              <button
+                onClick={saveSettings}
+                disabled={isSaving}
+                className="w-full py-2 bg-brand-accent text-white rounded-lg text-xs font-bold hover:bg-brand-accent/80 transition-all flex items-center justify-center gap-2"
+              >
+                {isSaving ? 'جاري الحفظ...' : 'حفظ الإعدادات الجديدة'}
+              </button>
+            )}
           </div>
 
           <div className="p-4 rounded-xl bg-white/5 border border-brand-border">
@@ -306,7 +354,6 @@ export const SmartBotPanel = ({
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-            <AnimatePresence initial={false}>
               {logs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center p-4">
                   <Bot size={32} className="text-brand-border mb-2" />
@@ -314,10 +361,8 @@ export const SmartBotPanel = ({
                 </div>
               ) : (
                 logs.map((log) => (
-                  <motion.div 
+                  <div 
                     key={log.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
                     className="p-3 rounded-lg bg-white/5 border border-brand-border/50 text-right"
                   >
                     <div className="flex justify-between items-start mb-1 flex-row-reverse">
@@ -337,10 +382,9 @@ export const SmartBotPanel = ({
                         السعر: ${log.price.toLocaleString()} | الرمز: {log.symbol}
                       </div>
                     )}
-                  </motion.div>
+                  </div>
                 ))
               )}
-            </AnimatePresence>
           </div>
         </div>
       </div>

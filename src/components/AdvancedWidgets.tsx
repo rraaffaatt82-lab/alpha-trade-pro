@@ -1,7 +1,6 @@
 import React from 'react';
 import { Gauge, Share2, History, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '../utils';
-import { motion } from 'motion/react';
 
 export const FearGreedGauge = ({ value = 65 }: { value?: number }) => {
   const getStatus = (v: number) => {

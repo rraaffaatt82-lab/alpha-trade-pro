@@ -1,7 +1,6 @@
 import React from 'react';
 import { Anchor, Globe, Zap, ShieldAlert, BarChart3 } from 'lucide-react';
 import { cn } from '../utils';
-import { motion } from 'motion/react';
 
 export const WhaleTracker = ({ data }: { data?: any[] }) => (
   <div className="bg-brand-surface border border-brand-border rounded-2xl p-6">
@@ -72,11 +71,9 @@ export const IntelligenceStatus = ({ confidence = 85, kelly = "12%", isAnalyzing
       </div>
       <div className="pt-4 border-t border-brand-border flex items-center gap-3 flex-row-reverse">
         <div className="flex-1 h-1 bg-brand-border rounded-full overflow-hidden">
-          <motion.div 
-            initial={{ width: '0%' }}
-            animate={{ width: isAnalyzing ? '100%' : '92%' }}
-            transition={{ duration: isAnalyzing ? 2 : 0.5, repeat: isAnalyzing ? Infinity : 0 }}
-            className="h-full bg-brand-accent" 
+          <div 
+            className="h-full bg-brand-accent transition-all duration-500" 
+            style={{ width: isAnalyzing ? '100%' : '92%' }}
           />
         </div>
         <span className="text-[10px] font-bold text-brand-accent uppercase">
