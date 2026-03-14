@@ -54,12 +54,15 @@ export const Sidebar = ({ currentView, setCurrentView }: { currentView: string, 
       </nav>
 
       <div className="p-4 border-t border-brand-border">
-        <div className="flex items-center gap-3 p-2 rounded-xl bg-white/5 cursor-pointer hover:bg-white/10 transition-colors">
+        <div className="flex items-center gap-3 p-2 rounded-xl bg-white/5 cursor-pointer hover:bg-white/10 transition-colors mb-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-accent to-purple-500" />
           <div className="flex-1 min-w-0 text-right">
             <p className="text-sm font-medium truncate">رأفت</p>
             <p className="text-xs text-brand-text-muted truncate">خطة برو</p>
           </div>
+        </div>
+        <div className="text-[9px] text-brand-text-muted text-center font-mono opacity-50">
+          v1.1.0-build.20260314.1
         </div>
       </div>
     </aside>
